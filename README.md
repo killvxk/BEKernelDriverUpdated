@@ -1,7 +1,6 @@
 # BE & EAC Mapper for unsigned drivers
 https://github.com/i32-Sudo/PdFwKrnlMapper
 
-https://youtu.be/a5BdAT4_YUU - Full Video on Setup
 # BEKernelDriverUpdated
 This is a repo of my previous BEKernelDriver but updated to add better protections and a more detailed setup. also with a good bit of code cleanup. This driver as of (8/3/2024) Does work with BattlEye games (Tested on Escape From Tarkov, DayZ, Rainbow Six Siege)
 # Project
