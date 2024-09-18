@@ -30,8 +30,6 @@
     <ClInclude Include="kernel\kernelTools.h" />
     <ClInclude Include="kernel\log.h" />
     <ClInclude Include="kernel\struct.h" />
-    <ClInclude Include="entry\IoCreateDriver\CreateDriver.h" />
-    <ClInclude Include="entry\IoCreateDriver\definitions.h" />
     <ClInclude Include="clean\clean.hpp" />
     <ClInclude Include="entry\hook\hook.hpp" />
   </ItemGroup>

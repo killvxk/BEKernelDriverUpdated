@@ -1,7 +1,6 @@
 #include <ntifs.h>
 #include <ntddk.h>
 #include <wdm.h>
-#include "IoCreateDriver/CreateDriver.h"
 #include "../clean/clean.hpp"
 #include "../kernel/log.h"
 #include "../kernel/xor.h"
@@ -71,77 +70,15 @@ typedef struct _KAFFINITY_EX {
 typedef ULONG KEPROCESSORINDEX;
 extern "C" NTSYSAPI BOOLEAN NTAPI KeInterlockedSetProcessorAffinityEx(PKAFFINITY_EX pAffinity, KEPROCESSORINDEX idxProcessor);
 
-PKNMI_HANDLER_CALLBACK SigscanKiNmiCallbackListHead() {
-    uintptr_t ntos_base_address = modules::get_ntos_base_address();
-    char NmiSignature[] = "\x81\x25\x00\x00\x00\x00\x00\x00\x00\x00\xB9\x00\x00\x00\x00";
-    char NmiSignatureMask[] = "xx????????x????";
-    uintptr_t nmi_in_progress = modules::find_pattern(ntos_base_address, NmiSignature, NmiSignatureMask);
-    return reinterpret_cast<PKNMI_HANDLER_CALLBACK>(nmi_in_progress);
-}
-
-PKNMI_HANDLER_CALLBACK KiNmiCallbackListHead = nullptr;
-
-extern "C" NTSTATUS PreventNMIExecution() {
-    KiNmiCallbackListHead = SigscanKiNmiCallbackListHead();
-    PKNMI_HANDLER_CALLBACK CurrentNMI = KiNmiCallbackListHead;
-    while (CurrentNMI) {
-        uint8_t* nmi_in_progress = reinterpret_cast<uint8_t*>(KiNmiCallbackListHead);
-        while (*nmi_in_progress != 0x48) {
-            ++nmi_in_progress;
-        }
-        nmi_in_progress += 3;
-        auto irql = KfRaiseIrql(0);
-        ULONG cores = KeQueryActiveProcessorCount(NULL);
-        for (auto i = 0ul; i < cores; ++i) {
-            KeInterlockedSetProcessorAffinityEx((PKAFFINITY_EX)nmi_in_progress, i);
-            InterlockedBitTestAndSet64(reinterpret_cast<LONG64*>(nmi_in_progress), i);
-        }
-        KeLowerIrql(irql);
-        CurrentNMI = CurrentNMI->Next;
-    }
-    return STATUS_SUCCESS;
-}
-
 extern "C" NTSTATUS OEPDriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
     NTSTATUS status = STATUS_SUCCESS;
     KeEnterGuardedRegion();
-    NTSTATUS NmiStatus = PreventNMIExecution();
-    if (NmiStatus != STATUS_SUCCESS) {
-        log(_("NMI Blocker Failed..."));
-        return driver::status::failed_intialization;
-    }
+
     if (initialize_hook() != driver::status::successful_operation)
         return driver::status::failed_intialization;
     if (initialize_ioctl() != driver::status::successful_operation)
         return driver::status::failed_intialization;
     DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, _(" - OEP Started"));
-
-    PKLDR_DATA_TABLE_ENTRY pSelfEntry = nullptr;
-    auto pNext = PsLoadedModuleList->Flink;
-    if (pNext) {
-        while (pNext != PsLoadedModuleList) {
-            auto pEntry = CONTAINING_RECORD(pNext, KLDR_DATA_TABLE_ENTRY, InLoadOrderLinks);
-            if (DriverObject->DriverStart == pEntry->DllBase) {
-                pSelfEntry = pEntry;
-                break;
-            }
-            pNext = pNext->Flink;
-        }
-    }
-    if (pSelfEntry) {
-        KIRQL kIrql = KeRaiseIrqlToDpcLevel();
-        auto pPrevEntry = (PKLDR_DATA_TABLE_ENTRY)pSelfEntry->InLoadOrderLinks.Blink;
-        auto pNextEntry = (PKLDR_DATA_TABLE_ENTRY)pSelfEntry->InLoadOrderLinks.Flink;
-        if (pPrevEntry) {
-            pPrevEntry->InLoadOrderLinks.Flink = pSelfEntry->InLoadOrderLinks.Flink;
-        }
-        if (pNextEntry) {
-            pNextEntry->InLoadOrderLinks.Blink = pSelfEntry->InLoadOrderLinks.Blink;
-        }
-        pSelfEntry->InLoadOrderLinks.Flink = (PLIST_ENTRY)pSelfEntry;
-        pSelfEntry->InLoadOrderLinks.Blink = (PLIST_ENTRY)pSelfEntry;
-        KeLowerIrql(kIrql);
-    }
 
     CleanDriverSys(UNICODE_STRING(RTL_CONSTANT_STRING(L"DriverKL.sys")), 0x63EF9904);
     CleanDriverSys(UNICODE_STRING(RTL_CONSTANT_STRING(L"PdFwKrnl.sys")), 0x611AB60D);
@@ -151,8 +88,6 @@ extern "C" NTSTATUS OEPDriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICO
 }
 
 extern "C" NTSTATUS DriverEntry(_In_ PDRIVER_OBJECT DriverObject, _In_ PUNICODE_STRING RegistryPath) {
-    UNREFERENCED_PARAMETER(DriverObject);
-    UNREFERENCED_PARAMETER(RegistryPath);
     DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, _(" - Driver Started"));
-    return IoCreateDriver(OEPDriverEntry);
+    return OEPDriverEntry(DriverObject, RegistryPath);
 }

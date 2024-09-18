@@ -25,8 +25,6 @@
     <ClCompile Include="requests\signature_scanner.cpp" />
     <ClInclude Include="clean\clean.hpp" />
     <ClInclude Include="entry\hook\hook.hpp" />
-    <ClInclude Include="entry\IoCreateDriver\CreateDriver.h" />
-    <ClInclude Include="entry\IoCreateDriver\definitions.h" />
     <ClInclude Include="kernel\imports.h" />
     <ClInclude Include="kernel\kernelTools.h" />
     <ClInclude Include="kernel\log.h" />
